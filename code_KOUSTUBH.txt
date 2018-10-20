@@ -1,0 +1,315 @@
+clc;
+close all;
+clear all;
+%****************************************************************************
+%Constants
+c0=3e8;
+e0=1/36/pi*1e-9;
+u0=4.*pi*1e-7;
+%**************************************************************
+% Set up modeling & discretization parameters
+X_Dim=2e-3; %x-dimension of the cavity
+Y_Dim=3e-3; % Y-dimension of the cavity
+Nx=100;  
+Ny=100;
+dx=X_Dim/(Nx-1);
+dy=Y_Dim/(Ny-1);
+dt=min(dx,dy)/(c0*sqrt(2));  % Courant stability fix and compensation for numerical dispersion
+fmax=0.5/dt;    
+NITER=300;%max(Nx,Ny)*10;
+Ndft=1000;  %number of DFT points
+df=fmax/Ndft/2;  % DFT frequency step
+%************************************************************************
+%Set up source parameters
+t0=5.*dt;
+sigma=3.*dt;
+ixs=round(Nx/2);     %source location in x
+iys=round(Ny/2);     %source location in y
+ixs2=round(Nx/6.5);
+iys2=round(Ny/6.5);
+ixs3=round(Nx/11.5);
+iys3=round(Ny/11.5);
+ixs4=round(Nx/9.5);
+iys4=round(Ny/9.5);
+ixs5=round(Nx/2.5);
+iys5=round(Nx/2.5);
+%***********************************************************
+%Set up the output locations
+ixo1=Nx-90;%round(Nx/1.5); 
+iyo1=Ny-10;%round(Ny/1.5);
+ixo2=Nx-70;%round(Nx/3);
+iyo2=Ny-10;%round(Ny/3);
+ixo3=Nx-90;%round(Nx/4.5);
+iyo3=Ny-30;%round(Ny/4.5);
+ixo4=Nx-70;%round(Nx/5);
+iyo4=Ny-30;%round(Ny/5);
+ixo5=Nx-25;
+iyo5=Ny-35;
+%******************************************************
+%Compute FDTD Coefficient Parameters
+CHx=dt/(dy*u0);
+CHy=dt/(dx*u0);
+CEz=dt/(dx*dy*e0);
+%************************************************************************
+%Initialize the field vectors
+Hx=zeros(Nx,Ny-1);
+Hy=zeros(Nx-1,Ny);
+Ez=zeros(Nx,Ny);
+%Initialising the TR arrays
+tr1=zeros(NITER,1);
+tr2=zeros(NITER,1);
+tr3=zeros(NITER,1);
+tr4=zeros(NITER,1);
+tr5=zeros(NITER,1);
+
+%FDTD Algorithm
+
+for n=1:NITER
+% Source excitation
+     
+   
+    Ez(ixs,iys)=Ez(ixs,iys)+(0.4)*Imsource(n); %Impulse source excitation
+                                               % More number of sources
+                                               % with different magnitudes
+                                               % added for final results
+                                               
+                                               
+    %Ez(ixs,iys)=Ez(ixs,iys)+Gsource(n,10,5); %Gaussian excitation
+     
+     
+     
+     
+     %%%sources close to each other ti illustrate current through a wire%%%%%%
+     
+     %%%%%%Scenario-Sources packed-----Array Failure%%%%%%Daignosis-----LASSO
+     
+     %max_pts=10;
+     %for l=1:max_pts
+         %if l<=(max_pts/2)
+        %Ez(ixs,iys+l)=Ez(ixs,iys+l)+l*Imsource(n);
+         %else
+             %Ez(ixs,iys+l)=Ez(ixs,iys+l)+(max_pts-l)*Imsource(n);
+         %end   
+     %end
+     
+    
+     
+
+    
+% Update Ez from Hz and Hy
+  Ez(2:Nx-1,2:Ny-1)=Ez(2:Nx-1,2:Ny-1)+CEz*((dy*(Hy(2:Nx-1,2:Ny-1)-Hy(1:Nx-2,2:Ny-1)))-(dx*(Hx(2:Nx-1,2:Ny-1)-Hx(2:Nx-1,1:Ny-2))));
+  %Update Hx from Ez
+  Hx(2:Nx-1,1:Ny-1)=Hx(2:Nx-1,1:Ny-1)-CHx*(Ez(2:Nx-1,2:Ny)-Ez(2:Nx-1,1:Ny-1));
+%Update Hy from Ez
+  Hy(1:Nx-1,2:Ny-1)=Hy(1:Nx-1,2:Ny-1)+CHy*(Ez(2:Nx,2:Ny-1)-Ez(1:Nx-1,2:Ny-1));
+
+  %Record the fields at selected points as output nodes(number chosen as per the test)        
+  tr1(n,1)=Ez(ixo1,iyo1);
+  tr2(n,1)=Ez(ixo2,iyo2);
+  tr3(n,1)=Ez(ixo3,iyo3);
+  tr4(n,1)=Ez(ixo4,iyo4);
+  tr5(n,1)=Ez(ixo5,iyo5);
+  
+% Real-time Fourier transform of the output fields
+   fre=zeros(Ndft,1);
+   Fdft=zeros(Ndft,1);
+   for k = 0:(Ndft-1)
+       f=k*df;
+       fre(k+1,1)=f*dt;     %normalized to dt
+       Fdft(k+1,1)=abs(dft(tr3,n,dt,f));
+   end
+  
+%Plot the field;
+    %if ~mod(n,100)
+    figure(1);
+    subplot(1,2,1);
+    plot(fre,Fdft);
+    axis([0 fmax*dt 0 inf]); 
+%    h1=imagesc(Ez);%,linspace(-0.13,0.11,200));
+        %titlestring=['\fontsize{14}Plot of E_z{Forwd-Src at Center} at time step =',num2str(T)];
+    %title(titlestring,'color','k');
+    %getframe;
+    subplot(1,2,2);
+    imagesc(Ez);
+    shading interp;
+    %axis([0 Nx-1 0 Ny-1 -1 1]); 
+    %xlabel('X \rightarrow');
+    %ylabel('\leftarrow Y');
+    %zlabel('E_z \rightarrow');   
+    %movie(M);
+    drawnow; 
+    %getframe;
+    %end
+    
+end
+
+ %% Individual Backward Transmissions--can be activated for a cluster of sources 
+ %[Ez1,e1]=BackTr(tr1,ixo1,iyo1);
+ %[Ez2,e2]=BackTr(tr2,ixo2,iyo2);
+ %[Ez3,e3]=BackTr(tr3,ixo3,iyo3);
+ %[Ez4,e4]=BackTr(tr4,ixo4,iyo4);
+ 
+ %%LASSO regression as a trial 
+ 
+ %X=[Ez1(ixs,iys-3:iys+3);Ez2(ixs,iys-3:iys+3);Ez3(ixs,iys-3:iys+3);Ez4(ixs,iys-3:iys+3)];
+ %Y=[e1;e2;e3;e4];
+ %a=lasso(X,Y);    
+ 
+ 
+ %Works perfectly for a cluster of 3 souurces, working
+ %on more sources.
+ %%%Conducting research on finding the optimal constraint parameter
+ %%%'lambda' for lasso with L1 regularisation.
+ %%Individual backward simulations establish a relationship between energy at the output node--eg-sum(tr1.^2) and 
+ %%sum of weighted values of Ez field at original input points equal to 1.
+ %%forming an underdetermined equation solved using lasso.
+ 
+ %Testing and verification******************************
+ %sum_E1=Ez1(ixs,iys)+3*Ez1(ixs,iys+1)+8*Ez1(ixs,iys+2);
+ %sum_E2=Ez2(ixs,iys)+3*Ez2(ixs,iys+1)+8*Ez2(ixs,iys+2);
+ %sum_E3=Ez3(ixs,iys)+3*Ez3(ixs,iys+1)+8*Ez3(ixs,iys+2);
+ %sum_E4=Ez4(ixs,iys)+3*Ez4(ixs,iys+1)+8*Ez4(ixs,iys+2);
+ %rat1=sum_E1/e1;
+%******************************************************* 
+
+%%Backtransmission using multiple output nodes
+Ez1=BackTrAll(tr1,tr2,tr3,tr4,tr5,ixo1,iyo1,ixo2,iyo2,ixo3,iyo3,ixo4,iyo4,ixo5,iyo5);
+%%%The input arguments are reduced as per the number of output nodes to
+%%%establish a relationship between number of input nodes and number of
+%%%output nodes in time reversal as one part of thesis.
+%%%%Observations- multiple false peaks reduced by more number of output
+%%%%nodes. These observations done for the first scenario being array
+%%%%failure diagnosis, will be applied to a dipole antenna scenario as
+%%%%another part of thesis.
+--------------------------------------------------------------------------------------------------------------------------------------------------------
+Functions Used
+--------------------------------------------------------------------------------------------------------------------------------------------------------
+function [Ez1]=BackTrAll(dat1,dat2,dat3,dat4,dat5,ixo1,iyo1,ixo2,iyo2,ixo3,iyo3,ixo4,iyo4,ixo5,iyo5)
+%% Initialze for Backward Transmission
+%Constants
+c0=3e8;
+e0=1/36/pi*1e-9;
+u0=4.*pi*1e-7;
+
+nutr1=flipud(dat1);
+nutr2=flipud(dat2);
+nutr3=flipud(dat3);
+nutr4=flipud(dat4);
+nutr5=flipud(dat5);
+%nutr6=flipud(dat6);
+%Initialize the field vectors
+Nx=100;  
+Ny=100;
+Hx1=zeros(Nx,Ny-1);
+Hy1=zeros(Nx-1,Ny);
+Ez1=zeros(Nx,Ny);
+
+%Derived parameters rewritten to reduce input arguments
+X_Dim=2e-3; %x-dimension of the cavity
+Y_Dim=3e-3; % Y-dimension of the cavity
+NITER=600;%max(Nx,Ny)*10;
+dx=X_Dim/(Nx-1);
+dy=Y_Dim/(Ny-1);
+dt=min(dx,dy)/(c0*sqrt(2));
+CHx=dt/(dy*u0);
+CHy=dt/(dx*u0);
+CEz=dt/(dx*dy*e0);
+
+
+for n2=1:NITER
+    
+     
+    % Update Ez from Hz and Hy
+  Ez1(2:Nx-1,2:Ny-1)=Ez1(2:Nx-1,2:Ny-1)+CEz*((dy*(Hy1(2:Nx-1,2:Ny-1)-Hy1(1:Nx-2,2:Ny-1)))-(dx*(Hx1(2:Nx-1,2:Ny-1)-Hx1(2:Nx-1,1:Ny-2))));
+%Reinjection
+  Ez1(ixo1,iyo1)=Ez1(ixo1,iyo1)+nutr1(n2,1);
+  Ez1(ixo2,iyo2)=Ez1(ixo2,iyo2)+nutr2(n2,1);
+  Ez1(ixo3,iyo3)=Ez1(ixo3,iyo3)+nutr3(n2,1);
+  Ez1(ixo4,iyo4)=Ez1(ixo4,iyo4)+nutr4(n2,1);
+  Ez1(ixo5,iyo5)=Ez1(ixo5,iyo5)+nutr5(n2,1);
+  %Ez1(ixo6,iyo6)=Ez1(ixo6,iyo6)+nutr6(n2,1);
+  
+  %Update Hx from Ez
+  Hx1(2:Nx-1,1:Ny-1)=Hx1(2:Nx-1,1:Ny-1)-CHx*(Ez1(2:Nx-1,2:Ny)-Ez1(2:Nx-1,1:Ny-1));
+%Update Hy from Ez
+  Hy1(1:Nx-1,2:Ny-1)=Hy1(1:Nx-1,2:Ny-1)+CHy*(Ez1(2:Nx,2:Ny-1)-Ez1(1:Nx-1,2:Ny-1));
+ 
+  figure(2);
+  
+  surf(Ez1);
+    shading interp;
+     
+    %axis([0 Nx-1 0 Ny-1 -1 1]); 
+    drawnow;
+end
+-------------------------------------------------------------------------------------------------------------------------------
+function [Ez,ener]=BackTr(dat,posx,posy)
+%Constants
+c0=299792458;
+e0=8.8541878176e-12;
+u0=1.2566370614e-6;
+tr=flipud(dat);
+
+%Initialize the field vectors
+Nx=100;  
+Ny=100;
+Hx=zeros(Nx,Ny-1);
+Hy=zeros(Nx-1,Ny);
+Ez=zeros(Nx,Ny);
+
+%Redundant components
+X_Dim=2e-3; %x-dimension of the cavity
+Y_Dim=3e-3; % Y-dimension of the cavity
+
+dx=X_Dim/(Nx-1);
+dy=Y_Dim/(Ny-1);
+NITER=600;%max(Nx,Ny)*10;
+
+%time step
+dt=min(dx,dy)/(c0*sqrt(2));
+
+%Compute Coefficient Parameters
+CHx=dt/(dy*u0);
+CHy=dt/(dx*u0);
+CEz=dt/(dx*dy*e0);
+
+for n=1:NITER
+   
+ 
+  %Update Ez from Hz and Hy
+  Ez(2:Nx-1,2:Ny-1)=Ez(2:Nx-1,2:Ny-1)+CEz*((dy*(Hy(2:Nx-1,2:Ny-1)-Hy(1:Nx-2,2:Ny-1)))-(dx*(Hx(2:Nx-1,2:Ny-1)-Hx(2:Nx-1,1:Ny-2))));
+ %Rinjection
+  Ez(posx,posy)=Ez(posx,posy)+tr(n,1); 
+  %Update Hx from Ez
+  Hx(2:Nx-1,1:Ny-1)=Hx(2:Nx-1,1:Ny-1)-CHx*(Ez(2:Nx-1,2:Ny)-Ez(2:Nx-1,1:Ny-1));
+%Update Hy from Ez
+  Hy(1:Nx-1,2:Ny-1)=Hy(1:Nx-1,2:Ny-1)+CHy*(Ez(2:Nx,2:Ny-1)-Ez(1:Nx-1,2:Ny-1));
+  
+  
+  surf(Ez);
+  shading interp;
+  axis([0 Nx-1 0 Ny-1 -0.2 0.2]); 
+  drawnow;
+end
+ener=sum(dat.^2);
+----------------------------------------------------------------------------------------------------------------------------------------------------------
+function [fs] = dft(x,NITER,dt,f)
+jj=sqrt(-1);    
+ff=0.+jj*0;
+    for n=1:NITER
+        ff=ff+x(n,1)*exp(-jj*2*pi*f*n*dt);
+    end;
+    fs=ff;
+---------------------------------------------------------------------------------------------------------------------------------------------------------
+function [fs] = Imsource(n)
+    fs=0;
+    if n==1
+      fs=1;
+    end;
+    
+
+
+  
+  
+
+    
